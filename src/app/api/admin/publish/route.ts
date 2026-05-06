@@ -1,7 +1,6 @@
-import { put } from '@vercel/blob';
 import { NextResponse } from 'next/server';
 import { isAuthenticated } from '@/lib/auth';
-import { updateAppConfig } from '@/lib/storage';
+import { updateAppConfig, uploadFile } from '@/lib/storage';
 
 export async function POST(request: Request) {
   if (!(await isAuthenticated())) {
@@ -18,25 +17,26 @@ export async function POST(request: Request) {
 
   let downloadUrl = formData.get('existingDownloadUrl') as string || '';
 
-  if (file && file.size > 0) {
-    // Upload new file
-    const blob = await put(`releases/update_${version}.exe`, file, {
-      access: 'public',
-      addRandomSuffix: true,
+  try {
+    if (file && file.size > 0) {
+      // Upload new file using Supabase
+      downloadUrl = await uploadFile(file, version);
+    }
+
+    if (!downloadUrl) {
+      return NextResponse.json({ error: 'No file provided and no existing URL' }, { status: 400 });
+    }
+
+    // Update config
+    await updateAppConfig({
+      version,
+      downloadUrl,
+      updatedAt: new Date().toISOString(),
     });
-    downloadUrl = blob.url;
+
+    return NextResponse.json({ success: true, version, downloadUrl });
+  } catch (error: any) {
+    console.error('Upload error:', error);
+    return NextResponse.json({ error: error.message || 'Upload failed' }, { status: 500 });
   }
-
-  if (!downloadUrl) {
-    return NextResponse.json({ error: 'No file provided and no existing URL' }, { status: 400 });
-  }
-
-  // Update config
-  await updateAppConfig({
-    version,
-    downloadUrl,
-    updatedAt: new Date().toISOString(),
-  });
-
-  return NextResponse.json({ success: true, version, downloadUrl });
 }
