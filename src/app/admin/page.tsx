@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, Save, CheckCircle, AlertCircle, FileCode } from 'lucide-react';
+import { Upload, Save, CheckCircle, AlertCircle } from 'lucide-react';
+import { supabaseClient } from '@/lib/supabaseClient';
 
 export default function AdminDashboard() {
   const [version, setVersion] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | ''; message: string }>({ type: '', message: '' });
-  const [currentConfig, setCurrentConfig] = useState<any>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -24,14 +24,33 @@ export default function AdminDashboard() {
     setLoading(true);
     setStatus({ type: '', message: '' });
 
-    const formData = new FormData();
-    formData.append('version', version);
-    if (file) formData.append('file', file);
-
     try {
+      let downloadUrl = '';
+
+      if (file) {
+        setStatus({ type: '', message: 'Uploading to Supabase... (bypassing Vercel limit)' });
+        const fileName = `releases/update_${version}_${Date.now()}.exe`;
+        
+        const { data, error: uploadError } = await supabaseClient
+          .storage
+          .from('releases')
+          .upload(fileName, file, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabaseClient
+          .storage
+          .from('releases')
+          .getPublicUrl(fileName);
+        
+        downloadUrl = publicUrl;
+      }
+
+      // Now notify the API to update the version metadata
       const res = await fetch('/api/admin/publish', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version, downloadUrl }),
       });
 
       const data = await res.json();
@@ -40,10 +59,11 @@ export default function AdminDashboard() {
         setStatus({ type: 'success', message: `Published version ${data.version} successfully!` });
         setFile(null);
       } else {
-        setStatus({ type: 'error', message: data.error || 'Something went wrong' });
+        setStatus({ type: 'error', message: data.error || 'Metadata update failed' });
       }
-    } catch (err) {
-      setStatus({ type: 'error', message: 'Network error occurred' });
+    } catch (err: any) {
+      console.error(err);
+      setStatus({ type: 'error', message: err.message || 'Network error occurred' });
     } finally {
       setLoading(false);
     }

@@ -1,42 +1,40 @@
 import { NextResponse } from 'next/server';
 import { isAuthenticated } from '@/lib/auth';
-import { updateAppConfig, uploadFile } from '@/lib/storage';
+import { updateAppConfig } from '@/lib/storage';
 
 export async function POST(request: Request) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const formData = await request.formData();
-  const file = formData.get('file') as File | null;
-  const version = formData.get('version') as string;
-
-  if (!version) {
-    return NextResponse.json({ error: 'Version is required' }, { status: 400 });
-  }
-
-  let downloadUrl = formData.get('existingDownloadUrl') as string || '';
-
   try {
-    if (file && file.size > 0) {
-      // Upload new file using Supabase
-      downloadUrl = await uploadFile(file, version);
+    const { version, downloadUrl } = await request.json();
+
+    if (!version) {
+      return NextResponse.json({ error: 'Version is required' }, { status: 400 });
     }
 
-    if (!downloadUrl) {
-      return NextResponse.json({ error: 'No file provided and no existing URL' }, { status: 400 });
-    }
-
-    // Update config
-    await updateAppConfig({
+    // We don't need to upload the file here anymore, the client already did it.
+    // If downloadUrl is empty, it means we only updated the version number (not recommended but possible).
+    
+    const config = {
       version,
-      downloadUrl,
+      downloadUrl: downloadUrl || '', // Keep existing if not provided? 
       updatedAt: new Date().toISOString(),
-    });
+    };
 
-    return NextResponse.json({ success: true, version, downloadUrl });
+    // If downloadUrl is empty, try to get existing one from current config
+    if (!downloadUrl) {
+      const { getAppConfig } = await import('@/lib/storage');
+      const current = await getAppConfig();
+      config.downloadUrl = current.downloadUrl;
+    }
+
+    await updateAppConfig(config);
+
+    return NextResponse.json({ success: true, version, downloadUrl: config.downloadUrl });
   } catch (error: any) {
-    console.error('Upload error:', error);
-    return NextResponse.json({ error: error.message || 'Upload failed' }, { status: 500 });
+    console.error('Publish API error:', error);
+    return NextResponse.json({ error: error.message || 'Update failed' }, { status: 500 });
   }
 }
