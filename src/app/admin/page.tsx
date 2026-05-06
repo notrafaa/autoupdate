@@ -29,7 +29,7 @@ export default function AdminDashboard() {
 
       if (file) {
         setStatus({ type: '', message: 'Uploading to Supabase... (bypassing Vercel limit)' });
-        const fileName = `releases/update_${version}_${Date.now()}.exe`;
+        const fileName = `update_${version}_${Date.now()}.exe`;
         
         const { data, error: uploadError } = await supabaseClient
           .storage
