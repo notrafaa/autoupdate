@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   const config = await getAppConfig();
-  return new NextResponse(config.version, {
-    headers: { 'Content-Type': 'text/plain' },
-  });
+  // On renvoie tout l'objet config pour que le loader C++ ait accès aux fichiers additionnels, à l'icône, etc.
+  return NextResponse.json(config);
 }
