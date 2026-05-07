@@ -8,33 +8,35 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { version, downloadUrl } = await request.json();
+    const data = await request.json();
+    const { version, versionName, mainFileUrl, iconUrl, additionalFiles } = data;
 
-    if (!version) {
-      return NextResponse.json({ error: 'Version is required' }, { status: 400 });
+    if (!version || !versionName) {
+      return NextResponse.json({ error: 'La version et le nom sont requis' }, { status: 400 });
     }
 
-    // We don't need to upload the file here anymore, the client already did it.
-    // If downloadUrl is empty, it means we only updated the version number (not recommended but possible).
-    
     const config = {
       version,
-      downloadUrl: downloadUrl || '', // Keep existing if not provided? 
+      versionName,
+      mainFileUrl: mainFileUrl || '',
+      iconUrl: iconUrl || '',
+      additionalFiles: additionalFiles || [],
       updatedAt: new Date().toISOString(),
     };
 
-    // If downloadUrl is empty, try to get existing one from current config
-    if (!downloadUrl) {
+    // If some URLs are missing, fetch current ones to prevent overwriting with empty
+    if (!mainFileUrl || !iconUrl) {
       const { getAppConfig } = await import('@/lib/storage');
       const current = await getAppConfig();
-      config.downloadUrl = current.downloadUrl;
+      if (!mainFileUrl) config.mainFileUrl = current.mainFileUrl;
+      if (!iconUrl) config.iconUrl = current.iconUrl;
     }
 
     await updateAppConfig(config);
 
-    return NextResponse.json({ success: true, version, downloadUrl: config.downloadUrl });
+    return NextResponse.json({ success: true, version });
   } catch (error: any) {
     console.error('Publish API error:', error);
-    return NextResponse.json({ error: error.message || 'Update failed' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Échec de la publication' }, { status: 500 });
   }
 }
