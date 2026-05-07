@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Upload, Save, Plus, X, FileText, Image as ImageIcon, 
-  History, CheckCircle, AlertCircle, Trash2, Package 
+  History, CheckCircle, AlertCircle, Package 
 } from 'lucide-react';
 import { supabaseClient } from '@/lib/supabaseClient';
 
@@ -20,12 +20,7 @@ export default function AdminDashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    fetch('/api/version')
-      .then(res => res.text())
-      .then(v => setVersion(v))
-      .catch(() => {});
-    
-    // Fetch History
+    // On ne pré-remplit plus la version, mais on récupère l'historique
     fetch('/api/admin/history')
       .then(res => res.json())
       .then(data => setHistory(data))
@@ -54,26 +49,22 @@ export default function AdminDashboard() {
       const timestamp = Date.now();
       const folder = `v_${version.replace(/\./g, '_')}_${timestamp}`;
 
-      // 1. Upload Main File (.all)
       if (mainFile) {
-        setStatus({ type: '', message: 'Upload du fichier Menu (.all)...' });
+        setStatus({ type: '', message: 'Upload du fichier Menu...' });
         mainFileUrl = await handleUploadToSupabase(mainFile, `${folder}/${mainFile.name}`);
       }
 
-      // 2. Upload Icon
       if (iconFile) {
         setStatus({ type: '', message: 'Upload de l\'icône...' });
         iconUrl = await handleUploadToSupabase(iconFile, `${folder}/icon.png`);
       }
 
-      // 3. Upload Additional Files
       for (const file of additionalFiles) {
         setStatus({ type: '', message: `Upload de ${file.name}...` });
         const url = await handleUploadToSupabase(file, `${folder}/${file.name}`);
         uploadedAdditionalFiles.push({ name: file.name, url });
       }
 
-      // 4. Update Metadata
       setStatus({ type: '', message: 'Mise à jour des métadonnées...' });
       const res = await fetch('/api/admin/publish', {
         method: 'POST',
@@ -87,14 +78,15 @@ export default function AdminDashboard() {
         }),
       });
 
-      if (!res.ok) throw new Error('Échec de la mise à jour des métadonnées');
+      if (!res.ok) throw new Error('Échec de la publication');
 
       setStatus({ type: 'success', message: 'Mise à jour publiée avec succès !' });
-      // Reset files
+      setVersion('');
+      setVersionName('');
       setMainFile(null);
       setIconFile(null);
       setAdditionalFiles([]);
-      // Refresh history
+      
       const histRes = await fetch('/api/admin/history');
       setHistory(await histRes.json());
 
@@ -107,56 +99,56 @@ export default function AdminDashboard() {
 
   return (
     <main>
-      <div className="grid-layout">
+      <div className="grid-layout" style={{ maxWidth: '600px' }}>
         <div className="glass-card">
-          <h1>🚀 Publier une Mise à jour</h1>
+          <h1>🚀 Nouvelle Mise à jour</h1>
           
           <form onSubmit={handlePublish}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-              <div className="input-group">
-                <label>Numéro de Version</label>
-                <input type="text" value={version} onChange={e => setVersion(e.target.value)} placeholder="ex: 1.0.2" required />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div className="input-group" style={{ margin: 0 }}>
+                <label>Version</label>
+                <input type="text" value={version} onChange={e => setVersion(e.target.value)} placeholder="1.0.0" required />
               </div>
-              <div className="input-group">
-                <label>Nom de l'Update</label>
-                <input type="text" value={versionName} onChange={e => setVersionName(e.target.value)} placeholder="ex: The Big Update" required />
+              <div className="input-group" style={{ margin: 0 }}>
+                <label>Nom</label>
+                <input type="text" value={versionName} onChange={e => setVersionName(e.target.value)} placeholder="Update Title" required />
               </div>
             </div>
 
             <div className="input-group">
-              <label>Fichier Menu (.all) & Icône</label>
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div className={`file-zone ${mainFile ? 'has-file' : ''}`} style={{ flex: 2 }}>
+              <label>Fichier Menu & Icône</label>
+              <div style={{ display: 'flex', gap: '0.8rem' }}>
+                <div className={`file-zone ${mainFile ? 'has-file' : ''}`} style={{ flex: 2, padding: '1.5rem' }}>
                   <input type="file" onChange={e => setMainFile(e.target.files?.[0] || null)} style={{ opacity: 0, position: 'absolute', inset: 0, cursor: 'pointer' }} />
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
-                    <Package size={24} color={mainFile ? '#10b981' : '#64748b'} />
-                    <span style={{ fontSize: '0.9rem' }}>{mainFile ? mainFile.name : 'Glisser le fichier .all'}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                    <Package size={20} color={mainFile ? '#10b981' : '#64748b'} />
+                    <span style={{ fontSize: '0.85rem' }}>{mainFile ? mainFile.name : 'Choisir le Menu'}</span>
                   </div>
                 </div>
                 
-                <div className={`file-zone ${iconFile ? 'has-file' : ''}`} style={{ flex: 1 }}>
+                <div className={`file-zone ${iconFile ? 'has-file' : ''}`} style={{ flex: 1, padding: '1.5rem' }}>
                   <input type="file" accept="image/*" onChange={e => setIconFile(e.target.files?.[0] || null)} style={{ opacity: 0, position: 'absolute', inset: 0, cursor: 'pointer' }} />
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                    {iconFile ? <img src={URL.createObjectURL(iconFile)} className="icon-preview" /> : <ImageIcon size={20} color="#64748b" />}
-                    <span style={{ fontSize: '0.8rem' }}>Icône PNG</span>
+                    {iconFile ? <img src={URL.createObjectURL(iconFile)} className="icon-preview" style={{ width: 24, height: 24 }} /> : <ImageIcon size={20} color="#64748b" />}
+                    <span style={{ fontSize: '0.8rem' }}>PNG</span>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="input-group">
-              <label>Fichiers Additionnels (Optionnel)</label>
+              <label>Fichiers Additionnels</label>
               <div className="file-list">
                 {additionalFiles.map((f, i) => (
                   <div key={i} className="file-list-item">
-                    <FileText size={16} />
+                    <FileText size={14} />
                     <span style={{ flex: 1 }}>{f.name}</span>
-                    <button type="button" onClick={() => setAdditionalFiles(prev => prev.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                      <X size={16} color="#ef4444" />
+                    <button type="button" onClick={() => setAdditionalFiles(prev => prev.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none' }}>
+                      <X size={14} color="#ef4444" />
                     </button>
                   </div>
                 ))}
-                <button type="button" className="btn btn-ghost" style={{ width: 'fit-content', marginTop: '0.5rem' }} onClick={() => {
+                <button type="button" className="btn btn-ghost" style={{ fontSize: '0.8rem', padding: '0.5rem 1rem' }} onClick={() => {
                   const input = document.createElement('input');
                   input.type = 'file';
                   input.onchange = (e: any) => {
@@ -164,48 +156,38 @@ export default function AdminDashboard() {
                   };
                   input.click();
                 }}>
-                  <Plus size={16} /> Ajouter un fichier
+                  <Plus size={14} /> Ajouter
                 </button>
               </div>
             </div>
 
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }} disabled={loading}>
-              {loading ? 'Publication en cours...' : <><Save size={18} /> Publier la version {version}</>}
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
+              {loading ? 'Publication...' : <><Save size={18} /> Publier</>}
             </button>
 
             {status.message && (
-              <div className={`status ${status.type}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
-                {status.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-                {status.message}
-              </div>
+              <p className={`status ${status.type}`} style={{ marginTop: '1rem' }}>{status.message}</p>
             )}
           </form>
         </div>
 
         <div className="glass-card" style={{ padding: '1.5rem' }}>
-          <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <History size={20} color="var(--accent)" /> Historique
+          <h2 style={{ fontSize: '1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <History size={18} color="var(--accent)" /> Historique des versions
           </h2>
-          <div style={{ maxHeight: '500px', overflowY: 'auto', paddingRight: '0.5rem' }}>
-            {history.length === 0 ? <p style={{ color: '#64748b', textAlign: 'center', fontSize: '0.9rem' }}>Aucune version publiée</p> : 
-              history.map((h, i) => (
-                <div key={i} className="history-item">
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span className="tag tag-version">{h.version}</span>
-                      <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{h.versionName}</span>
-                    </div>
-                    <p style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.3rem' }}>
-                      {new Date(h.updatedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {h.iconUrl && <img src={h.iconUrl} style={{ width: 24, height: 24, borderRadius: 4 }} />}
-                    <FileText size={18} color="#444" />
-                  </div>
+          <div style={{ display: 'grid', gap: '0.5rem' }}>
+            {history.map((h, i) => (
+              <div key={i} className="history-item" style={{ padding: '0.8rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                  <span className="tag tag-version">{h.version}</span>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{h.versionName}</span>
                 </div>
-              ))
-            }
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                   {h.iconUrl && <img src={h.iconUrl} style={{ width: 20, height: 20, borderRadius: 4 }} />}
+                   <Package size={16} color="#444" />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
