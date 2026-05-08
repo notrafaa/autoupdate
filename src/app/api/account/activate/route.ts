@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   const { data: account, error: accountError } = await supabase
     .from('user_accounts')
-    .select('id,hwid')
+    .select('id')
     .eq('username', username)
     .maybeSingle();
 
@@ -45,13 +45,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { success: false, message: 'Create your account before entering a license key.' },
       { status: 404 },
-    );
-  }
-
-  if (account.hwid && account.hwid !== hwid) {
-    return NextResponse.json(
-      { success: false, message: 'This account is linked to another browser.' },
-      { status: 403 },
     );
   }
 

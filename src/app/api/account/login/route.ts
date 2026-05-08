@@ -77,10 +77,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: 'Invalid username or password.' }, { status: 401 });
   }
 
-  if (account.hwid && account.hwid !== hwid) {
-    return NextResponse.json({ success: false, message: 'This account is linked to another browser.' }, { status: 403 });
-  }
-
   if (!account.hwid) {
     await supabase.from('user_accounts').update({ hwid }).eq('id', account.id);
   }

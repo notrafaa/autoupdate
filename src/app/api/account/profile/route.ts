@@ -74,10 +74,6 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   if (!account) return NextResponse.json({ success: false, message: 'Account not found.' }, { status: 404 });
 
-  if (account.hwid && account.hwid !== hwid) {
-    return NextResponse.json({ success: false, message: 'This account is linked to another browser.' }, { status: 403 });
-  }
-
   return NextResponse.json({ success: true, message: 'Profile loaded.', profile: await getProfile(account) });
 }
 
@@ -104,10 +100,6 @@ export async function PATCH(request: NextRequest) {
 
   if (accountError) return NextResponse.json({ success: false, message: accountError.message }, { status: 500 });
   if (!account) return NextResponse.json({ success: false, message: 'Account not found.' }, { status: 404 });
-
-  if (account.hwid && account.hwid !== hwid) {
-    return NextResponse.json({ success: false, message: 'This account is linked to another browser.' }, { status: 403 });
-  }
 
   const updatePayload: { username: string; password_hash?: string; hwid: string } = {
     username: username.trim(),
