@@ -45,3 +45,26 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, keys: data ?? [] }, { status: 201 });
 }
+
+export async function DELETE(request: NextRequest) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const id = request.nextUrl.searchParams.get('id');
+  if (!id) {
+    return NextResponse.json({ error: 'License id is required' }, { status: 400 });
+  }
+
+  const { error: unlinkError } = await supabase
+    .from('user_accounts')
+    .update({ license_id: null, license_key: null })
+    .eq('license_id', id);
+
+  if (unlinkError) return NextResponse.json({ error: unlinkError.message }, { status: 500 });
+
+  const { error } = await supabase.from('licenses').delete().eq('id', id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
+}

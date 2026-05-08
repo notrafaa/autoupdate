@@ -7,6 +7,7 @@ import {
   Check,
   Clock3,
   Copy,
+  Trash2,
   History,
   KeyRound,
   LoaderCircle,
@@ -146,6 +147,25 @@ export default function AdminDashboard() {
     await refreshData();
   }
 
+  async function deleteLicense(id: string, key: string) {
+    const confirmed = window.confirm(`Delete license ${key}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setLoading(`delete-${id}`);
+    const response = await fetch(`/api/admin/licenses?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+
+    if (response.ok) {
+      setLicenses((current) => current.filter((license) => license.id !== id));
+    } else {
+      const data = await response.json().catch(() => ({ error: 'Delete failed' }));
+      setStatus(data.error ?? 'Delete failed');
+    }
+
+    setLoading('');
+  }
+
   async function moderateTheme(id: string, nextStatus: 'approved' | 'rejected') {
     await fetch('/api/admin/themes', {
       method: 'PATCH',
@@ -235,9 +255,19 @@ export default function AdminDashboard() {
                 <span>{license.duration_days === 0 ? 'Lifetime' : `${license.duration_days ?? 30}j`}</span>
                 <span className={`pill ${license.status ?? 'unused'}`}>{license.status ?? 'unused'}</span>
                 <span className="truncate">{license.hwid ?? 'No HWID'}</span>
-                <button className="btn btn-ghost small" onClick={() => void resetHwid(license.id)}>
-                  <RefreshCcw size={15} /> Reset HWID
-                </button>
+                <div className="license-actions">
+                  <button className="btn btn-ghost small" onClick={() => void resetHwid(license.id)}>
+                    <RefreshCcw size={15} /> Reset HWID
+                  </button>
+                  <button
+                    className="icon-action danger"
+                    onClick={() => void deleteLicense(license.id, license.key)}
+                    disabled={loading === `delete-${license.id}`}
+                    aria-label={`Delete license ${license.key}`}
+                  >
+                    {loading === `delete-${license.id}` ? <LoaderCircle className="spin" size={15} /> : <Trash2 size={15} />}
+                  </button>
+                </div>
               </div>
             ))}
             {licenses.length === 0 && <p className="muted">No license keys yet.</p>}
