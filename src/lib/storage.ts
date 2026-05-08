@@ -41,7 +41,7 @@ export async function getAppConfig(): Promise<AppConfig> {
 
     const text = await data.text();
     return JSON.parse(text);
-  } catch (error) {
+  } catch {
     return { 
       version: '1.0.0', 
       versionName: 'Version Initiale',
@@ -127,7 +127,7 @@ export async function getHistory(): Promise<AppConfig[]> {
     );
 
     return history.filter(h => h !== null).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  } catch (e) {
+  } catch {
     return [];
   }
 }

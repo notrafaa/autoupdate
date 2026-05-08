@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     const cookieStore = await cookies();
     cookieStore.set('admin_auth', password, {
       httpOnly: true,
-      secure: process.env.NODE_NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       path: '/',
       maxAge: 60 * 60 * 24 * 7, // 1 week

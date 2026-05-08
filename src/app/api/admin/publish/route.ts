@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { isAuthenticated } from '@/lib/auth';
-import { updateAppConfig } from '@/lib/storage';
+import { getAppConfig, updateAppConfig } from '@/lib/storage';
 
 export async function POST(request: Request) {
   if (!(await isAuthenticated())) {
@@ -15,28 +15,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'La version et le nom sont requis' }, { status: 400 });
     }
 
+    const current = await getAppConfig();
     const config = {
       version,
       versionName,
-      mainFileUrl: mainFileUrl || '',
-      iconUrl: iconUrl || '',
+      mainFileUrl: mainFileUrl || current.mainFileUrl || '',
+      iconUrl: iconUrl || current.iconUrl || '',
       additionalFiles: additionalFiles || [],
       updatedAt: new Date().toISOString(),
     };
 
-    // If some URLs are missing, fetch current ones to prevent overwriting with empty
-    if (!mainFileUrl || !iconUrl) {
-      const { getAppConfig } = await import('@/lib/storage');
-      const current = await getAppConfig();
-      if (!mainFileUrl) config.mainFileUrl = current.mainFileUrl;
-      if (!iconUrl) config.iconUrl = current.iconUrl;
-    }
-
     await updateAppConfig(config);
 
     return NextResponse.json({ success: true, version });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Publish API error:', error);
-    return NextResponse.json({ error: error.message || 'Échec de la publication' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Echec de la publication';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

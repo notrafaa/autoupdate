@@ -1,196 +1,284 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { 
-  Upload, Save, Plus, X, FileText, Image as ImageIcon, 
-  History, CheckCircle, AlertCircle, Package 
+import { useEffect, useMemo, useState } from 'react';
+import {
+  BadgeCheck,
+  Ban,
+  Check,
+  Clock3,
+  Copy,
+  History,
+  KeyRound,
+  LoaderCircle,
+  Package,
+  RefreshCcw,
+  Save,
+  Shield,
+  Upload,
+  Users,
 } from 'lucide-react';
 import { supabaseClient } from '@/lib/supabaseClient';
+
+type License = {
+  id: string;
+  key: string;
+  duration_days: number | null;
+  status: string | null;
+  hwid: string | null;
+  activated_at: string | null;
+  expires_at: string | null;
+  created_at: string | null;
+};
+
+type Theme = {
+  id: string;
+  name: string;
+  author: string | null;
+  status: string;
+  created_at: string | null;
+};
+
+type ReleaseHistory = {
+  version: string;
+  versionName: string;
+  mainFileUrl: string;
+  updatedAt: string;
+};
 
 export default function AdminDashboard() {
   const [version, setVersion] = useState('');
   const [versionName, setVersionName] = useState('');
   const [mainFile, setMainFile] = useState<File | null>(null);
-  const [iconFile, setIconFile] = useState<File | null>(null);
-  const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState({ type: '', message: '' });
-  const router = useRouter();
+  const [licenses, setLicenses] = useState<License[]>([]);
+  const [themes, setThemes] = useState<Theme[]>([]);
+  const [history, setHistory] = useState<ReleaseHistory[]>([]);
+  const [duration, setDuration] = useState('30');
+  const [count, setCount] = useState(1);
+  const [generated, setGenerated] = useState<string[]>([]);
+  const [loading, setLoading] = useState('');
+  const [status, setStatus] = useState('');
+
+  const activeLicenses = useMemo(
+    () => licenses.filter((license) => license.status === 'active').length,
+    [licenses],
+  );
 
   useEffect(() => {
-    // On ne pré-remplit plus la version, mais on récupère l'historique
-    fetch('/api/admin/history')
-      .then(res => res.json())
-      .then(data => setHistory(data))
-      .catch(() => {});
+    void refreshData();
   }, []);
 
-  const handleUploadToSupabase = async (file: File, path: string) => {
-    const { data, error } = await supabaseClient.storage
-      .from('releases')
-      .upload(path, file, { upsert: true });
-    if (error) throw error;
-    const { data: { publicUrl } } = supabaseClient.storage.from('releases').getPublicUrl(path);
-    return publicUrl;
-  };
+  async function refreshData() {
+    const [licenseRes, themeRes, historyRes] = await Promise.all([
+      fetch('/api/admin/licenses'),
+      fetch('/api/admin/themes'),
+      fetch('/api/admin/history'),
+    ]);
 
-  const handlePublish = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setStatus({ type: '', message: 'Préparation de l\'envoi...' });
+    if (licenseRes.ok) setLicenses((await licenseRes.json()) as License[]);
+    if (themeRes.ok) setThemes((await themeRes.json()) as Theme[]);
+    if (historyRes.ok) setHistory((await historyRes.json()) as ReleaseHistory[]);
+  }
+
+  async function uploadToSupabase(file: File, path: string) {
+    const { error } = await supabaseClient.storage.from('releases').upload(path, file, { upsert: true });
+    if (error) throw error;
+    const { data } = supabaseClient.storage.from('releases').getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  async function handlePublish(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading('publish');
+    setStatus('Uploading to Supabase Storage...');
 
     try {
       let mainFileUrl = '';
-      let iconUrl = '';
-      const uploadedAdditionalFiles = [];
-
-      const timestamp = Date.now();
-      const folder = `v_${version.replace(/\./g, '_')}_${timestamp}`;
-
       if (mainFile) {
-        setStatus({ type: '', message: 'Upload du fichier Menu...' });
-        mainFileUrl = await handleUploadToSupabase(mainFile, `${folder}/${mainFile.name}`);
+        const folder = `v_${version.replace(/\./g, '_')}_${Date.now()}`;
+        mainFileUrl = await uploadToSupabase(mainFile, `${folder}/${mainFile.name}`);
       }
 
-      if (iconFile) {
-        setStatus({ type: '', message: 'Upload de l\'icône...' });
-        iconUrl = await handleUploadToSupabase(iconFile, `${folder}/icon.png`);
-      }
-
-      for (const file of additionalFiles) {
-        setStatus({ type: '', message: `Upload de ${file.name}...` });
-        const url = await handleUploadToSupabase(file, `${folder}/${file.name}`);
-        uploadedAdditionalFiles.push({ name: file.name, url });
-      }
-
-      setStatus({ type: '', message: 'Mise à jour des métadonnées...' });
-      const res = await fetch('/api/admin/publish', {
+      const response = await fetch('/api/admin/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          version, 
-          versionName,
-          mainFileUrl, 
-          iconUrl,
-          additionalFiles: uploadedAdditionalFiles 
-        }),
+        body: JSON.stringify({ version, versionName, mainFileUrl, additionalFiles: [] }),
       });
 
-      if (!res.ok) throw new Error('Échec de la publication');
+      if (!response.ok) throw new Error('Publish failed');
 
-      setStatus({ type: 'success', message: 'Mise à jour publiée avec succès !' });
+      setStatus('Release published. /api/download now points to this binary.');
       setVersion('');
       setVersionName('');
       setMainFile(null);
-      setIconFile(null);
-      setAdditionalFiles([]);
-      
-      const histRes = await fetch('/api/admin/history');
-      setHistory(await histRes.json());
-
-    } catch (err: any) {
-      setStatus({ type: 'error', message: err.message || 'Une erreur est survenue' });
+      await refreshData();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unknown error');
     } finally {
-      setLoading(false);
+      setLoading('');
     }
-  };
+  }
+
+  async function handleGenerate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading('keys');
+
+    const response = await fetch('/api/admin/licenses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ duration, count }),
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as { keys: License[] };
+      setGenerated(data.keys.map((license) => license.key));
+      await refreshData();
+    }
+
+    setLoading('');
+  }
+
+  async function resetHwid(id: string) {
+    await fetch('/api/admin/licenses/reset-hwid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    await refreshData();
+  }
+
+  async function moderateTheme(id: string, nextStatus: 'approved' | 'rejected') {
+    await fetch('/api/admin/themes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status: nextStatus }),
+    });
+    await refreshData();
+  }
 
   return (
-    <main>
-      <div className="grid-layout" style={{ maxWidth: '600px' }}>
-        <div className="glass-card">
-          <h1>🚀 Nouvelle Mise à jour</h1>
-          
-          <form onSubmit={handlePublish}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-              <div className="input-group" style={{ margin: 0 }}>
+    <main className="admin-shell">
+      <section className="admin-header">
+        <div>
+          <span className="section-kicker">Secure Dashboard</span>
+          <h1>Admin Console</h1>
+          <p>Manage license keys, Supabase Storage releases, and submitted cloud themes.</p>
+        </div>
+        <div className="metric-strip">
+          <div><KeyRound size={18} /><strong>{licenses.length}</strong><span>Keys</span></div>
+          <div><Shield size={18} /><strong>{activeLicenses}</strong><span>Active</span></div>
+          <div><Clock3 size={18} /><strong>{themes.filter((theme) => theme.status === 'pending').length}</strong><span>Pending</span></div>
+        </div>
+      </section>
+
+      <section className="admin-grid">
+        <div className="glass-card panel">
+          <div className="panel-title"><Package size={20} /><h2>Release Manager</h2></div>
+          <form onSubmit={handlePublish} className="stack">
+            <div className="two-col">
+              <div className="input-group">
                 <label>Version</label>
-                <input type="text" value={version} onChange={e => setVersion(e.target.value)} placeholder="1.0.0" required />
+                <input value={version} onChange={(event) => setVersion(event.target.value)} placeholder="1.2.0" required />
               </div>
-              <div className="input-group" style={{ margin: 0 }}>
-                <label>Nom</label>
-                <input type="text" value={versionName} onChange={e => setVersionName(e.target.value)} placeholder="Update Title" required />
-              </div>
-            </div>
-
-            <div className="input-group">
-              <label>Fichier Menu & Icône</label>
-              <div style={{ display: 'flex', gap: '0.8rem' }}>
-                <div className={`file-zone ${mainFile ? 'has-file' : ''}`} style={{ flex: 2, padding: '1.5rem' }}>
-                  <input type="file" onChange={e => setMainFile(e.target.files?.[0] || null)} style={{ opacity: 0, position: 'absolute', inset: 0, cursor: 'pointer' }} />
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                    <Package size={20} color={mainFile ? '#10b981' : '#64748b'} />
-                    <span style={{ fontSize: '0.85rem' }}>{mainFile ? mainFile.name : 'Choisir le Menu'}</span>
-                  </div>
-                </div>
-                
-                <div className={`file-zone ${iconFile ? 'has-file' : ''}`} style={{ flex: 1, padding: '1.5rem' }}>
-                  <input type="file" accept="image/*" onChange={e => setIconFile(e.target.files?.[0] || null)} style={{ opacity: 0, position: 'absolute', inset: 0, cursor: 'pointer' }} />
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                    {iconFile ? <img src={URL.createObjectURL(iconFile)} className="icon-preview" style={{ width: 24, height: 24 }} /> : <ImageIcon size={20} color="#64748b" />}
-                    <span style={{ fontSize: '0.8rem' }}>PNG</span>
-                  </div>
-                </div>
+              <div className="input-group">
+                <label>Release name</label>
+                <input value={versionName} onChange={(event) => setVersionName(event.target.value)} placeholder="Loader stable" required />
               </div>
             </div>
-
-            <div className="input-group">
-              <label>Fichiers Additionnels</label>
-              <div className="file-list">
-                {additionalFiles.map((f, i) => (
-                  <div key={i} className="file-list-item">
-                    <FileText size={14} />
-                    <span style={{ flex: 1 }}>{f.name}</span>
-                    <button type="button" onClick={() => setAdditionalFiles(prev => prev.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none' }}>
-                      <X size={14} color="#ef4444" />
-                    </button>
-                  </div>
-                ))}
-                <button type="button" className="btn btn-ghost" style={{ fontSize: '0.8rem', padding: '0.5rem 1rem' }} onClick={() => {
-                  const input = document.createElement('input');
-                  input.type = 'file';
-                  input.onchange = (e: any) => {
-                    if (e.target.files?.[0]) setAdditionalFiles(prev => [...prev, e.target.files[0]]);
-                  };
-                  input.click();
-                }}>
-                  <Plus size={14} /> Ajouter
-                </button>
-              </div>
-            </div>
-
-            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-              {loading ? 'Publication...' : <><Save size={18} /> Publier</>}
+            <label className={`file-zone ${mainFile ? 'has-file' : ''}`}>
+              <input type="file" accept=".exe,application/x-msdownload" onChange={(event) => setMainFile(event.target.files?.[0] ?? null)} />
+              <Upload size={22} />
+              <span>{mainFile ? mainFile.name : 'Upload latest loader .exe'}</span>
+            </label>
+            <button className="btn btn-primary" disabled={loading === 'publish'}>
+              {loading === 'publish' ? <LoaderCircle className="spin" size={18} /> : <Save size={18} />}
+              Publish Release
             </button>
-
-            {status.message && (
-              <p className={`status ${status.type}`} style={{ marginTop: '1rem' }}>{status.message}</p>
-            )}
+            {status && <p className="muted">{status}</p>}
           </form>
         </div>
 
-        <div className="glass-card" style={{ padding: '1.5rem' }}>
-          <h2 style={{ fontSize: '1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <History size={18} color="var(--accent)" /> Historique des versions
-          </h2>
-          <div style={{ display: 'grid', gap: '0.5rem' }}>
-            {history.map((h, i) => (
-              <div key={i} className="history-item" style={{ padding: '0.8rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                  <span className="tag tag-version">{h.version}</span>
-                  <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{h.versionName}</span>
-                </div>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
-                   {h.iconUrl && <img src={h.iconUrl} style={{ width: 20, height: 20, borderRadius: 4 }} />}
-                   <Package size={16} color="#444" />
-                </div>
+        <div className="glass-card panel">
+          <div className="panel-title"><KeyRound size={20} /><h2>Key Generator</h2></div>
+          <form onSubmit={handleGenerate} className="stack">
+            <div className="segmented">
+              {['1', '7', '30', 'lifetime'].map((value) => (
+                <button key={value} type="button" className={duration === value ? 'active' : ''} onClick={() => setDuration(value)}>
+                  {value === 'lifetime' ? 'Lifetime' : `${value}j`}
+                </button>
+              ))}
+            </div>
+            <div className="input-group">
+              <label>Quantity</label>
+              <input type="number" min={1} max={250} value={count} onChange={(event) => setCount(Number(event.target.value))} />
+            </div>
+            <button className="btn btn-primary" disabled={loading === 'keys'}>
+              {loading === 'keys' ? <LoaderCircle className="spin" size={18} /> : <BadgeCheck size={18} />}
+              Generate
+            </button>
+          </form>
+          {generated.length > 0 && (
+            <div className="generated-box">
+              <button className="icon-action" onClick={() => void navigator.clipboard.writeText(generated.join('\n'))} aria-label="Copy keys">
+                <Copy size={16} />
+              </button>
+              {generated.map((key) => <code key={key}>{key}</code>)}
+            </div>
+          )}
+        </div>
+
+        <div className="glass-card panel wide">
+          <div className="panel-title"><Users size={20} /><h2>User Licenses</h2></div>
+          <div className="table-list">
+            {licenses.map((license) => (
+              <div className="table-row" key={license.id}>
+                <code>{license.key}</code>
+                <span>{license.duration_days === 0 ? 'Lifetime' : `${license.duration_days ?? 30}j`}</span>
+                <span className={`pill ${license.status ?? 'unused'}`}>{license.status ?? 'unused'}</span>
+                <span className="truncate">{license.hwid ?? 'No HWID'}</span>
+                <button className="btn btn-ghost small" onClick={() => void resetHwid(license.id)}>
+                  <RefreshCcw size={15} /> Reset HWID
+                </button>
+              </div>
+            ))}
+            {licenses.length === 0 && <p className="muted">No license keys yet.</p>}
+          </div>
+        </div>
+
+        <div className="glass-card panel">
+          <div className="panel-title"><History size={20} /><h2>Release History</h2></div>
+          <div className="compact-list">
+            {history.map((item) => (
+              <div key={`${item.version}-${item.updatedAt}`} className="compact-item">
+                <span className="pill active">{item.version}</span>
+                <strong>{item.versionName}</strong>
               </div>
             ))}
           </div>
         </div>
-      </div>
+
+        <div className="glass-card panel">
+          <div className="panel-title"><Check size={20} /><h2>Cloud Themes</h2></div>
+          <div className="compact-list">
+            {themes.map((theme) => (
+              <div key={theme.id} className="theme-item">
+                <div>
+                  <strong>{theme.name}</strong>
+                  <span>{theme.author ?? 'Anonymous'} / {theme.status}</span>
+                </div>
+                <div className="theme-actions">
+                  <button className="icon-action approve" onClick={() => void moderateTheme(theme.id, 'approved')} aria-label="Approve theme">
+                    <Check size={16} />
+                  </button>
+                  <button className="icon-action reject" onClick={() => void moderateTheme(theme.id, 'rejected')} aria-label="Reject theme">
+                    <Ban size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {themes.length === 0 && <p className="muted">No submitted themes.</p>}
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

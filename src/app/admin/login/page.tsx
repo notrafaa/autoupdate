@@ -2,54 +2,83 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock } from 'lucide-react';
+import { Eye, EyeOff, Lock } from 'lucide-react';
 
 export default function LoginPage() {
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Simple cookie-based auth simulation for this demo
-    // In a real app, you'd call a login API that sets a secure cookie
-    const res = await fetch('/api/admin/login', {
+  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError('');
+
+    const response = await fetch('/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
     });
 
-    if (res.ok) {
+    if (response.ok) {
       router.push('/admin');
       router.refresh();
-    } else {
-      setError('Invalid password');
+      return;
     }
-  };
+
+    setError('Invalid password');
+  }
 
   return (
-    <main>
-      <div className="glass-card">
-        <h1>Admin Access</h1>
-        <form onSubmit={handleLogin}>
-          <div className="input-group">
-            <label htmlFor="password">Access Key</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
+    <main className="auth-page">
+      <section className="auth-card">
+        <div className="auth-brand">
+          <div className="brand-mark">
+            <Lock size={22} />
           </div>
-          <button type="submit" className="btn btn-primary">
-            <Lock size={18} /> Authenticate
+          <div>
+            <h1>Admin Access</h1>
+            <p>Authenticate to manage licenses and releases.</p>
+          </div>
+        </div>
+
+        <form className="auth-form" onSubmit={handleLogin}>
+          <div className="field">
+            <label htmlFor="password">Access Key</label>
+            <div className="input-shell">
+              <Lock size={18} />
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Password"
+                required
+              />
+              <button
+                className="password-toggle"
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" className="primary-button">
+            <Lock size={18} />
+            Authenticate
           </button>
-          {error && <p className="status error">{error}</p>}
         </form>
-      </div>
+
+        {error && (
+          <div className="auth-message bad">
+            <strong>Error</strong>
+            <span>{error}</span>
+          </div>
+        )}
+      </section>
     </main>
   );
 }
