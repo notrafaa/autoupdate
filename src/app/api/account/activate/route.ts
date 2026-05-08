@@ -112,7 +112,8 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    message: 'License activated. Download starting...',
+    message: 'License activated.',
     remaining: formatRemaining(expiresAt, license.duration_days),
+    licenseKey: license.key,
   });
 }

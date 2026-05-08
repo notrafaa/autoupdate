@@ -49,5 +49,6 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     message: 'Account created. Enter your license key to continue.',
+    username,
   });
 }
