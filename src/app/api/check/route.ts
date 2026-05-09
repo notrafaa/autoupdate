@@ -8,7 +8,6 @@ type LicenseRecord = {
   duration_days: number | null;
   expires_at: string | null;
   activated_at: string | null;
-  hwid: string | null;
   status: string | null;
 };
 
@@ -26,18 +25,17 @@ function formatRemaining(expiresAt: string | null, durationDays: number | null) 
 
 export async function GET(request: NextRequest) {
   const key = request.nextUrl.searchParams.get('key')?.trim();
-  const hwid = request.nextUrl.searchParams.get('hwid')?.trim();
 
-  if (!key || !hwid) {
+  if (!key) {
     return NextResponse.json(
-      { auth_success: false, status: 'missing_params', message: 'key and hwid are required.' },
+      { auth_success: false, status: 'invalid_key', message: 'Invalid license key' },
       { status: 400 },
     );
   }
 
   const { data, error } = await supabase
     .from('licenses')
-    .select('id,key,duration_days,expires_at,activated_at,hwid,status')
+    .select('id,key,duration_days,expires_at,activated_at,status')
     .eq('key', key)
     .maybeSingle<LicenseRecord>();
 
@@ -48,19 +46,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (!data || data.status === 'revoked') {
+  if (!data || data.status === 'revoked' || data.status === 'disabled') {
     return NextResponse.json({
       auth_success: false,
       status: 'invalid_key',
-      message: 'License key is invalid or revoked.',
-    });
-  }
-
-  if (data.hwid && data.hwid !== hwid) {
-    return NextResponse.json({
-      auth_success: false,
-      status: 'hwid_mismatch',
-      message: 'This key is already linked to another machine.',
+      message: 'Invalid license key',
     });
   }
 
@@ -76,17 +66,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       auth_success: false,
       status: 'expired',
-      message: 'License key has expired.',
+      message: 'Invalid license key',
       remaining: 'Expired',
       expires_at: expiresAt,
     });
   }
 
-  if (!data.activated_at || !data.hwid || !data.expires_at) {
+  if (!data.activated_at || !data.expires_at || data.status !== 'active') {
     await supabase
       .from('licenses')
       .update({
-        hwid,
         activated_at: data.activated_at ?? now.toISOString(),
         expires_at: expiresAt,
         status: 'active',
@@ -99,7 +88,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     auth_success: true,
     status: 'active',
-    message: 'License valid. Download starts automatically.',
+    message: 'Authenticated',
     remaining: formatRemaining(expiresAt, data.duration_days),
     expires_at: expiresAt,
     download_url: config.mainFileUrl || '/api/download',
