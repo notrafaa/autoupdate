@@ -9,6 +9,7 @@ type AccountRecord = {
   password_hash: string;
   license_id: string | null;
   license_key: string | null;
+  avatar_url: string | null;
 };
 
 type LicenseRecord = {
@@ -44,7 +45,7 @@ function authFailed(status: string, message: string, code = 401) {
   );
 }
 
-async function validateLicense(license: LicenseRecord | null, hwid?: string | null) {
+async function validateLicense(license: LicenseRecord | null, hwid?: string | null, account?: AccountRecord | null) {
   if (!license || license.status === 'revoked' || license.status === 'disabled') {
     return NextResponse.json(
       { auth_success: false, success: false, status: 'invalid_license', message: 'Invalid license.' },
@@ -113,6 +114,7 @@ async function validateLicense(license: LicenseRecord | null, hwid?: string | nu
     expires_at: expiresAt,
     license_key: license.key,
     download_url: config.mainFileUrl || '/api/download',
+    avatar_url: (account as AccountRecord)?.avatar_url || '/logo.png',
   });
 }
 
@@ -129,7 +131,7 @@ export async function GET(request: NextRequest) {
 
     const { data: account, error: accountError } = await supabase
       .from('user_accounts')
-      .select('id,username,password_hash,license_id,license_key')
+      .select('id,username,password_hash,license_id,license_key,avatar_url')
       .eq('username', username)
       .maybeSingle<AccountRecord>();
 
@@ -159,7 +161,7 @@ export async function GET(request: NextRequest) {
       return authFailed('server_error', licenseError.message, 500);
     }
 
-    return validateLicense(license, hwid);
+    return validateLicense(license, hwid, account);
   }
 
   if (!key) {

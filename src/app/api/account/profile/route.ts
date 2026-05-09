@@ -7,6 +7,7 @@ type AccountRecord = {
   username: string;
   license_key: string | null;
   hwid: string | null;
+  avatar_url: string | null;
 };
 
 type LicenseRecord = {
@@ -51,6 +52,7 @@ async function getProfile(account: AccountRecord) {
 
   return {
     username: account.username,
+    avatarUrl: account.avatar_url || '/logo.png',
     licenseKey: account.license_key,
     remaining: license ? formatRemaining(license.expires_at, license.duration_days) : null,
     status: license?.status ?? null,
@@ -67,7 +69,7 @@ export async function GET(request: NextRequest) {
 
   const { data: account, error } = await supabase
     .from('user_accounts')
-    .select('id,username,license_key,hwid')
+    .select('id,username,license_key,hwid,avatar_url')
     .eq('username', username)
     .maybeSingle<AccountRecord>();
 
