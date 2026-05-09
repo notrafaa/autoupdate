@@ -7,6 +7,7 @@ import {
   Check,
   Clock3,
   Copy,
+  FileCode2,
   Star,
   Trash2,
   History,
@@ -41,6 +42,24 @@ type Theme = {
   created_at: string | null;
 };
 
+type CloudConfig = {
+  id: string;
+  name: string;
+  author: string | null;
+  icon: string | null;
+  color: string | null;
+  status: string;
+  created_at: string | null;
+};
+
+type AdminAction = {
+  id: string;
+  action: string;
+  target_type: string;
+  target_name: string | null;
+  created_at: string | null;
+};
+
 type ReleaseHistory = {
   version: string;
   versionName: string;
@@ -54,6 +73,8 @@ export default function AdminDashboard() {
   const [mainFile, setMainFile] = useState<File | null>(null);
   const [licenses, setLicenses] = useState<License[]>([]);
   const [themes, setThemes] = useState<Theme[]>([]);
+  const [configs, setConfigs] = useState<CloudConfig[]>([]);
+  const [actions, setActions] = useState<AdminAction[]>([]);
   const [history, setHistory] = useState<ReleaseHistory[]>([]);
   const [duration, setDuration] = useState('30');
   const [count, setCount] = useState(1);
@@ -71,14 +92,18 @@ export default function AdminDashboard() {
   }, []);
 
   async function refreshData() {
-    const [licenseRes, themeRes, historyRes] = await Promise.all([
+    const [licenseRes, themeRes, configRes, actionRes, historyRes] = await Promise.all([
       fetch('/api/admin/licenses'),
       fetch('/api/admin/themes'),
+      fetch('/api/configs/admin'),
+      fetch('/api/admin/actions'),
       fetch('/api/admin/history'),
     ]);
 
     if (licenseRes.ok) setLicenses((await licenseRes.json()) as License[]);
     if (themeRes.ok) setThemes((await themeRes.json()) as Theme[]);
+    if (configRes.ok) setConfigs((await configRes.json()) as CloudConfig[]);
+    if (actionRes.ok) setActions((await actionRes.json()) as AdminAction[]);
     if (historyRes.ok) setHistory((await historyRes.json()) as ReleaseHistory[]);
   }
 
@@ -169,20 +194,54 @@ export default function AdminDashboard() {
   }
 
   async function moderateTheme(id: string, nextStatus: 'approved' | 'rejected') {
-    await fetch('/api/admin/themes', {
+    const response = await fetch('/api/admin/themes', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status: nextStatus }),
     });
+    setStatus(response.ok ? `Theme ${nextStatus}.` : 'Theme moderation failed.');
     await refreshData();
   }
 
   async function setDefaultTheme(id: string) {
-    await fetch('/api/admin/themes/default', {
+    const response = await fetch('/api/admin/themes/default', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     });
+    setStatus(response.ok ? 'Default theme updated.' : 'Default theme update failed.');
+    await refreshData();
+  }
+
+  async function deleteTheme(id: string, name: string) {
+    const confirmed = window.confirm(`Delete theme ${name}?`);
+    if (!confirmed) return;
+
+    const response = await fetch(`/api/admin/themes?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    setStatus(response.ok ? 'Theme deleted.' : 'Theme delete failed.');
+    await refreshData();
+  }
+
+  async function moderateConfig(id: string, nextStatus: 'approved' | 'rejected') {
+    const response = await fetch(`/api/configs/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: nextStatus }),
+    });
+    setStatus(response.ok ? `Config ${nextStatus}.` : 'Config moderation failed.');
+    await refreshData();
+  }
+
+  async function deleteConfig(id: string, name: string) {
+    const confirmed = window.confirm(`Delete config ${name}?`);
+    if (!confirmed) return;
+
+    const response = await fetch(`/api/configs/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    setStatus(response.ok ? 'Config deleted.' : 'Config delete failed.');
     await refreshData();
   }
 
@@ -197,7 +256,7 @@ export default function AdminDashboard() {
         <div className="metric-strip">
           <div><KeyRound size={18} /><strong>{licenses.length}</strong><span>Keys</span></div>
           <div><Shield size={18} /><strong>{activeLicenses}</strong><span>Active</span></div>
-          <div><Clock3 size={18} /><strong>{themes.filter((theme) => theme.status === 'pending').length}</strong><span>Pending</span></div>
+          <div><Clock3 size={18} /><strong>{themes.filter((theme) => theme.status === 'pending').length + configs.filter((config) => config.status === 'pending').length}</strong><span>Pending</span></div>
         </div>
       </section>
 
@@ -318,10 +377,53 @@ export default function AdminDashboard() {
                   <button className="icon-action reject" onClick={() => void moderateTheme(theme.id, 'rejected')} aria-label="Reject theme">
                     <Ban size={16} />
                   </button>
+                  <button className="icon-action danger" onClick={() => void deleteTheme(theme.id, theme.name)} aria-label="Delete theme">
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </div>
             ))}
             {themes.length === 0 && <p className="muted">No submitted themes.</p>}
+          </div>
+        </div>
+
+        <div className="glass-card panel">
+          <div className="panel-title"><FileCode2 size={20} /><h2>Cloud Configs</h2></div>
+          <div className="compact-list">
+            {configs.map((config) => (
+              <div key={config.id} className="theme-item">
+                <div>
+                  <strong>{config.name}</strong>
+                  <span>{config.author ?? 'Anonymous'} / {config.status} / {config.icon ?? 'file'}</span>
+                </div>
+                <div className="theme-actions">
+                  <button className="icon-action approve" onClick={() => void moderateConfig(config.id, 'approved')} aria-label="Approve config">
+                    <Check size={16} />
+                  </button>
+                  <button className="icon-action reject" onClick={() => void moderateConfig(config.id, 'rejected')} aria-label="Reject config">
+                    <Ban size={16} />
+                  </button>
+                  <button className="icon-action danger" onClick={() => void deleteConfig(config.id, config.name)} aria-label="Delete config">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {configs.length === 0 && <p className="muted">No submitted configs.</p>}
+          </div>
+        </div>
+
+        <div className="glass-card panel wide">
+          <div className="panel-title"><History size={20} /><h2>Admin Actions</h2></div>
+          <div className="compact-list">
+            {actions.map((action) => (
+              <div key={action.id} className="compact-item">
+                <span className="pill">{action.target_type}</span>
+                <strong>{action.action.replace(/_/g, ' ')}</strong>
+                <span className="muted">{action.target_name ?? action.target_type}</span>
+              </div>
+            ))}
+            {actions.length === 0 && <p className="muted">No admin actions yet.</p>}
           </div>
         </div>
       </section>
