@@ -7,6 +7,7 @@ import {
   Check,
   Clock3,
   Copy,
+  Star,
   Trash2,
   History,
   KeyRound,
@@ -36,6 +37,7 @@ type Theme = {
   name: string;
   author: string | null;
   status: string;
+  is_default?: boolean;
   created_at: string | null;
 };
 
@@ -175,6 +177,15 @@ export default function AdminDashboard() {
     await refreshData();
   }
 
+  async function setDefaultTheme(id: string) {
+    await fetch('/api/admin/themes/default', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    await refreshData();
+  }
+
   return (
     <main className="admin-shell">
       <section className="admin-header">
@@ -292,10 +303,15 @@ export default function AdminDashboard() {
             {themes.map((theme) => (
               <div key={theme.id} className="theme-item">
                 <div>
-                  <strong>{theme.name}</strong>
+                  <strong>{theme.name} {theme.is_default && <span className="pill active" style={{marginLeft: 8}}>Default</span>}</strong>
                   <span>{theme.author ?? 'Anonymous'} / {theme.status}</span>
                 </div>
                 <div className="theme-actions">
+                  {theme.status === 'approved' && !theme.is_default && (
+                    <button className="icon-action" onClick={() => void setDefaultTheme(theme.id)} aria-label="Set as default">
+                      <Star size={16} />
+                    </button>
+                  )}
                   <button className="icon-action approve" onClick={() => void moderateTheme(theme.id, 'approved')} aria-label="Approve theme">
                     <Check size={16} />
                   </button>
