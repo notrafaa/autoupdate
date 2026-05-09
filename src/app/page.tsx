@@ -14,6 +14,7 @@ type ApiResponse = {
 
 type UserProfile = {
   username: string;
+  avatarUrl: string | null;
   licenseKey: string | null;
   remaining: string | null;
   status: string | null;
@@ -66,6 +67,10 @@ const copy = {
     loginValidation: 'Enter your username and password.',
     updateValidation: 'Username must contain at least 3 characters.',
     licenseValidation: 'Enter your license key.',
+    uploadAvatar: 'Upload avatar',
+    uploading: 'Uploading...',
+    avatarTitle: 'Profile picture',
+    avatarSuccess: 'Avatar updated.',
   },
   fr: {
     createTitle: 'Créer un compte',
@@ -111,6 +116,10 @@ const copy = {
     loginValidation: 'Entre ton pseudo et ton mot de passe.',
     updateValidation: 'Le pseudo doit contenir au moins 3 caractères.',
     licenseValidation: 'Entre ta license key.',
+    uploadAvatar: "Changer l'avatar",
+    uploading: 'Envoi...',
+    avatarTitle: 'Photo de profil',
+    avatarSuccess: 'Avatar mis à jour.',
   },
 };
 
@@ -361,6 +370,42 @@ export default function Home() {
     }
   }
 
+  async function handleAvatarUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !profile) return;
+
+    setLoading('avatar');
+    setResult(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('username', profile.username);
+    formData.append('hwid', getBrowserHwid());
+
+    try {
+      const response = await fetch('/api/account/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = (await response.json()) as ApiResponse & { avatar_url?: string };
+
+      if (data.success && data.avatar_url) {
+        setProfile((current) => current ? { ...current, avatarUrl: data.avatar_url! } : current);
+        setResultKind('saved');
+        setResult({ success: true, message: t.avatarSuccess });
+      } else {
+        setResultKind('error');
+        setResult(data);
+      }
+    } catch {
+      setResultKind('error');
+      setResult({ success: false, message: t.serverError });
+    } finally {
+      setLoading('');
+    }
+  }
+
   function handleLogout() {
     window.localStorage.removeItem('portal_username');
     setMode('menu');
@@ -465,6 +510,31 @@ export default function Home() {
         {isDashboard && (
           <div className="dashboard-panels form-enter" key={`dashboard-${lang}`}>
             <div className="dashboard-actions">
+              <div className="avatar-section">
+                <div className="avatar-wrapper">
+                  {loading === 'avatar' ? (
+                    <LoaderCircle className="spin" size={24} />
+                  ) : (
+                    <img src={profile?.avatarUrl || '/logo.png'} alt="Avatar" />
+                  )}
+                  <label className="avatar-edit" htmlFor="avatar-input" title={t.uploadAvatar}>
+                    <UserPlus size={14} />
+                    <input
+                      id="avatar-input"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarUpload}
+                      disabled={loading === 'avatar'}
+                      hidden
+                    />
+                  </label>
+                </div>
+                <div className="avatar-info">
+                   <span className="username-display">{profile?.username}</span>
+                   <span className="avatar-label">{t.avatarTitle}</span>
+                </div>
+              </div>
+
               <button className="text-button logout-button" type="button" onClick={handleLogout}>
                 <LogOut size={16} />
                 {t.logout}
