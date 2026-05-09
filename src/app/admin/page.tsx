@@ -275,9 +275,9 @@ export default function AdminDashboard() {
               </div>
             </div>
             <label className={`file-zone ${mainFile ? 'has-file' : ''}`}>
-              <input type="file" accept=".exe,application/x-msdownload" onChange={(event) => setMainFile(event.target.files?.[0] ?? null)} />
+              <input type="file" accept=".exe,.zip,application/x-msdownload,application/zip" onChange={(event) => setMainFile(event.target.files?.[0] ?? null)} />
               <Upload size={22} />
-              <span>{mainFile ? mainFile.name : 'Upload latest loader .exe'}</span>
+              <span>{mainFile ? mainFile.name : 'Upload loader (.exe) or package (.zip)'}</span>
             </label>
             <button className="btn btn-primary" disabled={loading === 'publish'}>
               {loading === 'publish' ? <LoaderCircle className="spin" size={18} /> : <Save size={18} />}
