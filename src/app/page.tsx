@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Download, Eye, EyeOff, LoaderCircle, Lock, LogIn, Save, UserPlus, UserRound } from 'lucide-react';
+import { Download, Eye, EyeOff, LoaderCircle, Lock, LogIn, LogOut, Save, UserPlus, UserRound } from 'lucide-react';
 
 type ApiResponse = {
   success: boolean;
@@ -47,6 +47,7 @@ const copy = {
     activate: 'Activate license',
     activating: 'Activating...',
     download: 'Download loader',
+    logout: 'Log out',
     activeLicense: 'Active license',
     noLicense: 'No active license yet',
     remaining: 'Time remaining',
@@ -91,6 +92,7 @@ const copy = {
     activate: 'Activer la licence',
     activating: 'Activation...',
     download: 'Télécharger le loader',
+    logout: 'Se déconnecter',
     activeLicense: 'Licence active',
     noLicense: 'Aucune licence active',
     remaining: 'Temps restant',
@@ -157,7 +159,7 @@ export default function Home() {
         if (data.profile) {
           setProfile(data.profile);
           setUsername(data.profile.username);
-          setLicenseKey(data.profile.licenseKey ?? '');
+          setLicenseKey('');
         }
       })();
     }
@@ -251,7 +253,7 @@ export default function Home() {
         setPassword('');
         setMode('dashboard');
         setProfile(data.profile ?? null);
-        setLicenseKey(data.profile?.licenseKey ?? '');
+        setLicenseKey('');
         setResultKind('saved');
         setResult({ ...data, message: t.loginMessage });
       } else {
@@ -344,6 +346,7 @@ export default function Home() {
           remaining: data.remaining ?? current?.remaining ?? null,
           status: 'active',
         }));
+        setLicenseKey('');
         setResultKind('activated');
         setResult({ ...data, message: t.licenseActivatedMessage });
       } else {
@@ -356,6 +359,16 @@ export default function Home() {
     } finally {
       setLoading('');
     }
+  }
+
+  function handleLogout() {
+    window.localStorage.removeItem('portal_username');
+    setMode('menu');
+    setUsername('');
+    setPassword('');
+    setLicenseKey('');
+    setProfile(null);
+    setResult(null);
   }
 
   const isDashboard = mode === 'dashboard';
@@ -451,6 +464,13 @@ export default function Home() {
 
         {isDashboard && (
           <div className="dashboard-panels form-enter" key={`dashboard-${lang}`}>
+            <div className="dashboard-actions">
+              <button className="text-button logout-button" type="button" onClick={handleLogout}>
+                <LogOut size={16} />
+                {t.logout}
+              </button>
+            </div>
+
             <form className="dashboard-panel" onSubmit={handleSaveAccount} noValidate>
               <AccountFields
                 t={t}

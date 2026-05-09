@@ -379,6 +379,17 @@ input:focus,
   gap: 14px;
 }
 
+.dashboard-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.logout-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .dashboard-panel,
 .license-summary {
   display: grid;

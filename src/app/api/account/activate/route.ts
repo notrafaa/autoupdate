@@ -11,6 +11,12 @@ type LicenseRecord = {
   status: string | null;
 };
 
+type AccountRecord = {
+  id: string;
+  license_id: string | null;
+  license_key: string | null;
+};
+
 function formatRemaining(expiresAt: string | null, durationDays: number | null) {
   if (durationDays === null || durationDays === 0 || expiresAt === null) return 'Lifetime';
 
@@ -22,9 +28,9 @@ function formatRemaining(expiresAt: string | null, durationDays: number | null) 
 }
 
 export async function POST(request: NextRequest) {
-  const { username, licenseKey, hwid } = await request.json();
+  const { username, licenseKey } = await request.json();
 
-  if (!username || !licenseKey || !hwid) {
+  if (!username || !licenseKey) {
     return NextResponse.json(
       { success: false, message: 'Username and license key are required.' },
       { status: 400 },
@@ -33,9 +39,9 @@ export async function POST(request: NextRequest) {
 
   const { data: account, error: accountError } = await supabase
     .from('user_accounts')
-    .select('id')
+    .select('id,license_id,license_key')
     .eq('username', username)
-    .maybeSingle();
+    .maybeSingle<AccountRecord>();
 
   if (accountError) {
     return NextResponse.json({ success: false, message: accountError.message }, { status: 500 });
@@ -48,6 +54,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (account.license_id || account.license_key) {
+    let currentLicense: { status: string | null } | null = null;
+
+    if (account.license_id) {
+      const { data } = await supabase
+        .from('licenses')
+        .select('status')
+        .eq('id', account.license_id)
+        .maybeSingle<{ status: string | null }>();
+      currentLicense = data ?? null;
+    } else if (account.license_key) {
+      const { data } = await supabase
+        .from('licenses')
+        .select('status')
+        .eq('key', account.license_key)
+        .maybeSingle<{ status: string | null }>();
+      currentLicense = data ?? null;
+    }
+
+    if (currentLicense && currentLicense.status !== 'disabled' && currentLicense.status !== 'unused') {
+      return NextResponse.json(
+        { success: false, message: 'This account already has an active license.' },
+        { status: 409 },
+      );
+    }
+  }
+
   const { data: license, error: licenseError } = await supabase
     .from('licenses')
     .select('id,key,duration_days,expires_at,activated_at,hwid,status')
@@ -58,14 +91,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: licenseError.message }, { status: 500 });
   }
 
-  if (!license || license.status === 'revoked') {
+  if (!license || license.status === 'revoked' || license.status === 'disabled') {
     return NextResponse.json({ success: false, message: 'Invalid license key.' }, { status: 401 });
   }
 
-  if (license.hwid && license.hwid !== hwid) {
+  if (license.status === 'active' || license.hwid) {
     return NextResponse.json(
-      { success: false, message: 'This license key is already linked to another machine.' },
-      { status: 403 },
+      { success: false, message: 'This license key has already been redeemed.' },
+      { status: 409 },
     );
   }
 
@@ -85,7 +118,6 @@ export async function POST(request: NextRequest) {
     .update({
       license_id: license.id,
       license_key: license.key,
-      hwid,
     })
     .eq('id', account.id);
 
@@ -96,7 +128,6 @@ export async function POST(request: NextRequest) {
   await supabase
     .from('licenses')
     .update({
-      hwid,
       activated_at: license.activated_at ?? now.toISOString(),
       expires_at: expiresAt,
       status: 'active',
