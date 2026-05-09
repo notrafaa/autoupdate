@@ -212,6 +212,7 @@ export default function Home() {
         setMode('dashboard');
         setProfile({
           username: createdUsername,
+          avatarUrl: null,
           licenseKey: null,
           remaining: null,
           status: null,
@@ -351,6 +352,7 @@ export default function Home() {
       if (data.success) {
         setProfile((current) => ({
           username,
+          avatarUrl: current?.avatarUrl ?? null,
           licenseKey: data.licenseKey ?? licenseKey.trim(),
           remaining: data.remaining ?? current?.remaining ?? null,
           status: 'active',
