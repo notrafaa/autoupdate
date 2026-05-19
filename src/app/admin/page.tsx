@@ -71,6 +71,11 @@ export default function AdminDashboard() {
   const [version, setVersion] = useState('');
   const [versionName, setVersionName] = useState('');
   const [mainFile, setMainFile] = useState<File | null>(null);
+  const [driverFile, setDriverFile] = useState<File | null>(null);
+  const [iconFile, setIconFile] = useState<File | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [watermarkFile, setWatermarkFile] = useState<File | null>(null);
+
   const [licenses, setLicenses] = useState<License[]>([]);
   const [themes, setThemes] = useState<Theme[]>([]);
   const [configs, setConfigs] = useState<CloudConfig[]>([]);
@@ -117,27 +122,61 @@ export default function AdminDashboard() {
   async function handlePublish(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading('publish');
-    setStatus('Uploading to Supabase Storage...');
+    setStatus('Uploading files to Supabase Storage...');
 
     try {
+      const folder = `v_${version.replace(/\./g, '_')}_${Date.now()}`;
+      
       let mainFileUrl = '';
       if (mainFile) {
-        const folder = `v_${version.replace(/\./g, '_')}_${Date.now()}`;
         mainFileUrl = await uploadToSupabase(mainFile, `${folder}/${mainFile.name}`);
+      }
+
+      let driverFileUrl = '';
+      if (driverFile) {
+        driverFileUrl = await uploadToSupabase(driverFile, `${folder}/${driverFile.name}`);
+      }
+
+      let iconFileUrl = '';
+      if (iconFile) {
+        iconFileUrl = await uploadToSupabase(iconFile, `${folder}/${iconFile.name}`);
+      }
+
+      let logoFileUrl = '';
+      if (logoFile) {
+        logoFileUrl = await uploadToSupabase(logoFile, `${folder}/${logoFile.name}`);
+      }
+
+      let watermarkFileUrl = '';
+      if (watermarkFile) {
+        watermarkFileUrl = await uploadToSupabase(watermarkFile, `${folder}/${watermarkFile.name}`);
       }
 
       const response = await fetch('/api/admin/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ version, versionName, mainFileUrl, additionalFiles: [] }),
+        body: JSON.stringify({
+          version,
+          versionName,
+          mainFileUrl,
+          driverFileUrl,
+          iconUrl: iconFileUrl,
+          logoUrl: logoFileUrl,
+          watermarkUrl: watermarkFileUrl,
+          additionalFiles: []
+        }),
       });
 
       if (!response.ok) throw new Error('Publish failed');
 
-      setStatus('Release published. /api/download now points to this binary.');
+      setStatus('Release and files successfully published.');
       setVersion('');
       setVersionName('');
       setMainFile(null);
+      setDriverFile(null);
+      setIconFile(null);
+      setLogoFile(null);
+      setWatermarkFile(null);
       await refreshData();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unknown error');
@@ -262,7 +301,7 @@ export default function AdminDashboard() {
 
       <section className="admin-grid">
         <div className="glass-card panel">
-          <div className="panel-title"><Package size={20} /><h2>Release Manager</h2></div>
+          <div className="panel-title"><Package size={20} /><h2>Release & Asset Manager</h2></div>
           <form onSubmit={handlePublish} className="stack">
             <div className="two-col">
               <div className="input-group">
@@ -274,20 +313,61 @@ export default function AdminDashboard() {
                 <input value={versionName} onChange={(event) => setVersionName(event.target.value)} placeholder="Loader stable" required />
               </div>
             </div>
-            <label className={`file-zone ${mainFile ? 'has-file' : ''}`}>
-              <input type="file" accept=".exe,.zip,application/x-msdownload,application/zip" onChange={(event) => setMainFile(event.target.files?.[0] ?? null)} />
-              <Upload size={22} />
-              <span>{mainFile ? mainFile.name : 'Upload loader (.exe) or package (.zip)'}</span>
-            </label>
+
+            <div className="input-group">
+              <label>Loader executable (.exe)</label>
+              <label className={`file-zone ${mainFile ? 'has-file' : ''}`} style={{ padding: '10px', minHeight: '60px' }}>
+                <input type="file" accept=".exe" onChange={(event) => setMainFile(event.target.files?.[0] ?? null)} />
+                <Upload size={16} />
+                <span style={{ fontSize: '12px' }}>{mainFile ? mainFile.name : 'Choose loader.exe'}</span>
+              </label>
+            </div>
+
+            <div className="input-group">
+              <label>Driver file (.sys)</label>
+              <label className={`file-zone ${driverFile ? 'has-file' : ''}`} style={{ padding: '10px', minHeight: '60px' }}>
+                <input type="file" accept=".sys" onChange={(event) => setDriverFile(event.target.files?.[0] ?? null)} />
+                <Upload size={16} />
+                <span style={{ fontSize: '12px' }}>{driverFile ? driverFile.name : 'Choose driver.sys'}</span>
+              </label>
+            </div>
+
+            <div className="input-group">
+              <label>Icon image (icon.jpg)</label>
+              <label className={`file-zone ${iconFile ? 'has-file' : ''}`} style={{ padding: '10px', minHeight: '60px' }}>
+                <input type="file" accept="image/jpeg,image/jpg" onChange={(event) => setIconFile(event.target.files?.[0] ?? null)} />
+                <Upload size={16} />
+                <span style={{ fontSize: '12px' }}>{iconFile ? iconFile.name : 'Choose icon.jpg'}</span>
+              </label>
+            </div>
+
+            <div className="two-col">
+              <div className="input-group">
+                <label>Logo image (logo.png)</label>
+                <label className={`file-zone ${logoFile ? 'has-file' : ''}`} style={{ padding: '10px', minHeight: '60px' }}>
+                  <input type="file" accept="image/png" onChange={(event) => setLogoFile(event.target.files?.[0] ?? null)} />
+                  <Upload size={16} />
+                  <span style={{ fontSize: '11px' }}>{logoFile ? logoFile.name : 'Choose logo.png'}</span>
+                </label>
+              </div>
+
+              <div className="input-group">
+                <label>Watermark image (watermark.png)</label>
+                <label className={`file-zone ${watermarkFile ? 'has-file' : ''}`} style={{ padding: '10px', minHeight: '60px' }}>
+                  <input type="file" accept="image/png" onChange={(event) => setWatermarkFile(event.target.files?.[0] ?? null)} />
+                  <Upload size={16} />
+                  <span style={{ fontSize: '11px' }}>{watermarkFile ? watermarkFile.name : 'Choose watermark.png'}</span>
+                </label>
+              </div>
+            </div>
+
             <button className="btn btn-primary" disabled={loading === 'publish'}>
               {loading === 'publish' ? <LoaderCircle className="spin" size={18} /> : <Save size={18} />}
-              Publish Release
+              Publish Release & Assets
             </button>
-            {status && <p className="muted">{status}</p>}
+            {status && <p className="muted" style={{ wordBreak: 'break-all' }}>{status}</p>}
           </form>
         </div>
-
-        <div className="glass-card panel">
           <div className="panel-title"><KeyRound size={20} /><h2>Key Generator</h2></div>
           <form onSubmit={handleGenerate} className="stack">
             <div className="segmented">

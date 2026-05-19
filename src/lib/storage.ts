@@ -9,17 +9,18 @@ export interface ReleaseFile {
   name: string;
   url: string;
 }
-
 export interface AppConfig {
   version: string;
   versionName: string;
   mainFileUrl: string;
+  driverFileUrl?: string;
   iconUrl?: string;
+  logoUrl?: string;
+  watermarkUrl?: string;
   additionalFiles: ReleaseFile[];
   updatedAt: string;
   changelog?: string;
 }
-
 const BUCKET_NAME = 'releases';
 
 export async function getAppConfig(): Promise<AppConfig> {
